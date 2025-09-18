@@ -1,6 +1,7 @@
 import React, { createContext, useMemo, useState } from "react";
+import { getRoleFromAccessToken } from "../api/jwt";
 
-type Role = "ADMIN" | "UNIVERSITY" | "STUDENT" | null;
+export type Role = "ADMIN" | "UNIVERSITY" | "STUDENT" | null;
 
 type AuthState = {
   accessToken: string | null;
@@ -16,22 +17,34 @@ export const AuthContext = createContext<AuthState>({
   logout: () => {},
 });
 
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
+  children,
+}) => {
   const [accessToken, setAccessToken] = useState<string | null>(
     localStorage.getItem("access_token")
   );
-  const [role, setRole] = useState<Role>(
-    (localStorage.getItem("role") as Role) || null
-  );
+
+  // ✅ fix here
+  const [role, setRole] = useState<Role>(() => {
+    const saved = localStorage.getItem("role") as Role | null;
+    if (saved) return saved;
+
+    const token = localStorage.getItem("access_token");
+    if (token) {
+      return getRoleFromAccessToken(token) ?? null; // ✅ ensure null, not undefined
+    }
+    return null;
+  });
 
   const setAuth = (token: string, r?: Role, refresh?: string) => {
     setAccessToken(token);
     localStorage.setItem("access_token", token);
+
     if (refresh) localStorage.setItem("refresh_token", refresh);
-    if (r) {
-      setRole(r);
-      localStorage.setItem("role", r);
-    }
+
+    const finalRole: Role = r ?? getRoleFromAccessToken(token) ?? null;
+    setRole(finalRole);
+    if (finalRole) localStorage.setItem("role", finalRole);
   };
 
   const logout = () => {
@@ -47,5 +60,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     [accessToken, role]
   );
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
+  );
 };
