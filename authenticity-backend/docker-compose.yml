@@ -1,0 +1,36 @@
+version: "3.9"
+
+services:
+  backend:
+    build: .
+    container_name: authenticity-backend
+    restart: always
+    env_file:
+      - .env
+    volumes:
+      - .:/app
+      - ./firebase-service-account.json:/app/firebase-service-account.json:ro
+    ports:
+      - "8000:8000"
+    command: >
+      uvicorn app.main:app
+      --host 0.0.0.0
+      --port 8000
+      --workers 4
+    depends_on:
+      - firebase-emulator
+
+  firebase-emulator:
+    image: gcr.io/google.com/cloudsdktool/cloud-sdk:emulators
+    container_name: firebase-emulator
+    command: >
+      gcloud beta emulators firestore start
+      --host-port=0.0.0.0:8080
+      --project=fake-project
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./firebase-data:/firestore-data
+    environment:
+      - FIRESTORE_PROJECT_ID=fake-project
+      - FIRESTORE_EMULATOR_HOST=0.0.0.0:8080
