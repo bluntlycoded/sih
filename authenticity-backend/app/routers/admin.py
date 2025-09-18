@@ -2,13 +2,12 @@ import uuid
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, EmailStr
-from typing import Optional
+from typing import Optional, List
 
 from app.security import require_roles, hash_user_password
 from app.core.roles import Role
 from app.db import get_collection
 from app.schemas import InstitutionCreate, InstitutionKeyUpdate, InstitutionOut, UserOut
-
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
 
@@ -17,13 +16,20 @@ router = APIRouter(prefix="/admin", tags=["Admin"])
 class UserCreate(BaseModel):
     email: EmailStr
     password: str
-    role: str  # "ADMIN", "UNIVERSITY", or "STUDENT"
+    role: Role  # must be "ADMIN", "UNIVERSITY", or "STUDENT"
     institution_id: Optional[str] = None
+
+
+class UserRoleUpdate(BaseModel):
+    role: Role
 
 
 # ---------- Institutions ----------
 @router.post("/institutions", response_model=InstitutionOut)
-def create_institution(req: InstitutionCreate, _: dict = Depends(require_roles(Role.ADMIN))):
+def create_institution(
+    req: InstitutionCreate,
+    _: dict = Depends(require_roles(Role.ADMIN))
+):
     institutions = get_collection("institutions")
     inst_id = str(uuid.uuid4())
     data = {
@@ -37,7 +43,7 @@ def create_institution(req: InstitutionCreate, _: dict = Depends(require_roles(R
     return data
 
 
-@router.get("/institutions", response_model=list[InstitutionOut])
+@router.get("/institutions", response_model=List[InstitutionOut])
 def list_institutions(_: dict = Depends(require_roles(Role.ADMIN))):
     institutions = get_collection("institutions")
     docs = institutions.stream()
@@ -65,7 +71,11 @@ def revoke_institution(inst_id: str, _: dict = Depends(require_roles(Role.ADMIN)
 
 
 @router.put("/institutions/{inst_id}/key")
-def update_institution_key(inst_id: str, req: InstitutionKeyUpdate, _: dict = Depends(require_roles(Role.ADMIN))):
+def update_institution_key(
+    inst_id: str,
+    req: InstitutionKeyUpdate,
+    _: dict = Depends(require_roles(Role.ADMIN))
+):
     institutions = get_collection("institutions")
     doc = institutions.document(inst_id).get()
     if not doc.exists:
@@ -84,12 +94,19 @@ def create_user(req: UserCreate, _: dict = Depends(require_roles(Role.ADMIN))):
     for _ in existing:
         raise HTTPException(status_code=400, detail="User already exists")
 
+    # enforce institution assignment for non-admins
+    if req.role != Role.ADMIN and not req.institution_id:
+        raise HTTPException(
+            status_code=400,
+            detail="Institution ID required for non-admin users"
+        )
+
     uid = str(uuid.uuid4())
     user_doc = {
         "id": uid,
         "email": req.email,
         "password_hash": hash_user_password(req.password),
-        "role": req.role,  # store as plain string
+        "role": req.role.value,  # save as plain uppercase string
         "institution_id": req.institution_id,
         "is_active": True,
         "created_at": datetime.utcnow().isoformat(),
@@ -99,24 +116,18 @@ def create_user(req: UserCreate, _: dict = Depends(require_roles(Role.ADMIN))):
     return {
         "id": uid,
         "email": req.email,
-        "role": req.role,
+        "role": req.role.value,
         "institution_id": req.institution_id,
         "is_active": True,
         "created_at": user_doc["created_at"],
     }
 
 
-@router.get("/users", response_model=list[UserOut])
+@router.get("/users", response_model=List[UserOut])
 def list_users(_: dict = Depends(require_roles(Role.ADMIN))):
     users = get_collection("users")
     docs = users.stream()
-    return [
-        {
-            **doc.to_dict(),
-            "role": str(doc.to_dict().get("role")),  # ensure role is always a string
-        }
-        for doc in docs
-    ]
+    return [doc.to_dict() for doc in docs]
 
 
 @router.post("/users/{user_id}/deactivate")
@@ -137,3 +148,25 @@ def activate_user(user_id: str, _: dict = Depends(require_roles(Role.ADMIN))):
         raise HTTPException(404, "User not found")
     users.document(user_id).update({"is_active": True})
     return {"id": user_id, "is_active": True}
+
+
+@router.put("/users/{user_id}/role")
+def update_user_role(
+    user_id: str,
+    req: UserRoleUpdate,
+    _: dict = Depends(require_roles(Role.ADMIN))
+):
+    users = get_collection("users")
+    doc = users.document(user_id).get()
+    if not doc.exists:
+        raise HTTPException(404, "User not found")
+
+    # enforce institution requirement if changing to non-admin
+    if req.role != Role.ADMIN and not doc.to_dict().get("institution_id"):
+        raise HTTPException(
+            status_code=400,
+            detail="Institution ID required for non-admin users"
+        )
+
+    users.document(user_id).update({"role": req.role.value})
+    return {"id": user_id, "role": req.role.value}
