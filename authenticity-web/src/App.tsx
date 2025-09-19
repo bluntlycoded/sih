@@ -1,42 +1,34 @@
-import React from "react";
-import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
+import  { useState } from "react";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "./auth/AuthContext";
 import { Protected } from "./auth/Protected";
 import Navbar from "./components/Navbar";
 
+
 // pages
-import LoginPage from "../src/pages/Login";
-import AdminDashboard from "../src/pages/AdminUsers";
-import UniversityDashboard from "../src/pages/UniversityIssue";
+import AdminDashboard from "./pages/AdminUsers";
+import UniversityDashboard from "./pages/UniversityIssue";
 import StudentDashboard from "./pages/StudentDashboard";
-import PublicVerify from "./pages/PublicVerify";
 import HomePage from "./pages/Home";
+import NotFound from "./pages/NotFound";
 
-// Wrapper to handle layouts
+// login modal
+import Login from "./pages/Login";
+
+// ---------------- App Layout ----------------
 function AppLayout() {
-  const location = useLocation();
-
-  // Routes where we don't want Navbar / extra padding
-  const authRoutes = ["/login", "/register"];
-  const isAuthPage = authRoutes.includes(location.pathname);
-
-  if (isAuthPage) {
-    return (
-      <Routes>
-        <Route path="/login" element={<LoginPage />} />
-        {/* if you add register later */}
-        {/* <Route path="/register" element={<RegisterPage />} /> */}
-      </Routes>
-    );
-  }
+  const [loginOpen, setLoginOpen] = useState(false);
 
   return (
     <div className="flex min-h-screen flex-col">
-      <Navbar />
+      {/* Navbar with login button hook */}
+      <Navbar onLoginClick={() => setLoginOpen(true)} />
+
       <main className="flex-1 bg-gray-50 dark:bg-slate-950">
         <Routes>
           <Route path="/" element={<HomePage />} />
-
+<Route path="*" element={<NotFound />} />
+<Route path="/logout" element={<HomePage />} />
           <Route
             path="/admin"
             element={
@@ -63,14 +55,30 @@ function AppLayout() {
               </Protected>
             }
           />
-
-          <Route path="/verify" element={<PublicVerify />} />
         </Routes>
       </main>
+
+      {/* Login Modal */}
+      {loginOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="relative w-full max-w-lg rounded-xl bg-white shadow-2xl">
+            {/* Close button */}
+            <button
+              onClick={() => setLoginOpen(false)}
+              className="absolute right-3 top-3 text-gray-500 hover:text-gray-700"
+            >
+              ✕
+            </button>
+            {/* Pass onSuccess so login can close modal */}
+            <Login onSuccess={() => setLoginOpen(false)} />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
+// ---------------- Main App ----------------
 export default function App() {
   return (
     <BrowserRouter>

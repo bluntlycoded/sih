@@ -1,3 +1,4 @@
+# app/config.py
 from pydantic_settings import BaseSettings
 from typing import List
 
@@ -20,7 +21,15 @@ class Settings(BaseSettings):
     FIREBASE_CREDENTIALS: str = "firebase-service-account.json"
 
     # CORS
-    CORS_ORIGINS: List[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
+    CORS_ORIGINS: List[str] = [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ]
+
+    # Blockchain
+    BLOCKCHAIN_RPC_URL: str = "http://blockchain:8545"  # Ganache/Hardhat inside docker
+    BLOCKCHAIN_CHAIN_ID: int = 1337
+    BLOCKCHAIN_PRIVATE_KEY: str
 
     class Config:
         env_file = ".env"
