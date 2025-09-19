@@ -9,7 +9,7 @@ services:
       - .env
     volumes:
       - .:/app
-      - ./firebase-service-account.json:/app/firebase-service-account.json:ro
+      - ./credentials.json:/app/credentials.json:ro   # ✅ mount real Google service account key
     ports:
       - "8000:8000"
     command: >
@@ -17,8 +17,11 @@ services:
       --host 0.0.0.0
       --port 8000
       --workers 4
+    environment:
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/credentials.json   # ✅ tell Vision SDK where to look
     depends_on:
       - firebase-emulator
+      - blockchain
 
   firebase-emulator:
     image: gcr.io/google.com/cloudsdktool/cloud-sdk:emulators
@@ -34,3 +37,19 @@ services:
     environment:
       - FIRESTORE_PROJECT_ID=fake-project
       - FIRESTORE_EMULATOR_HOST=0.0.0.0:8080
+
+  blockchain:
+    image: trufflesuite/ganache:latest
+    container_name: local-blockchain
+    ports:
+      - "8003:8545"   # map Ganache's 8545 RPC to host 8003
+    command:
+      - --wallet.accounts=0x59c6995e998f97a5a0044966f094538bb9c7a64f06b65900f2a0d9e8b6a2c7d8,100000000000000000000
+      - --wallet.accounts=0x8c5d5f083dd4f6b83a55e1a2d9a0abf1bbf1c28f7871b1d29e1d9c8b7a9c6d3d,100000000000000000000
+      - --chain.chainId=1337
+    networks:
+      - default
+
+networks:
+  default:
+    driver: bridge
