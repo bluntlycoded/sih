@@ -1,0 +1,15 @@
+# macOS
+.DS_Store
+
+# Secrets — service account keys, never commit
+credentials.json
+vision-service-account.json
+firebase-service-account.json
+
+# Runtime artifacts
+authenticity-backend/uploads/
+
+# Python
+__pycache__/
+*.pyc
+venv/
